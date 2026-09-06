@@ -93,7 +93,7 @@ def root() -> FileResponse:
         FRONTEND_DIR / "index.html",
         headers={
             "Content-Security-Policy": (
-                "default-src 'self'; script-src 'self'; "
+                "default-src 'self'; script-src 'self' 'unsafe-eval'; "
                 "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
                 "font-src 'self'; connect-src 'self'; object-src 'none'; "
                 "base-uri 'self'; form-action 'self'"
