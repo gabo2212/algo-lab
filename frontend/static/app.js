@@ -303,9 +303,9 @@ function renderBarChart(series, { unit = "", max } = {}) {
 }
 
 function renderScatter(xs, ys, { xLabel = "Réel", yLabel = "Prédit" } = {}) {
-  const width = 420;
-  const height = 220;
-  const pad = { l: 42, r: 12, t: 12, b: 36 };
+  const width = 440;
+  const height = 228;
+  const pad = { l: 62, r: 14, t: 16, b: 40 };
   const innerW = width - pad.l - pad.r;
   const innerH = height - pad.t - pad.b;
   const all = xs.concat(ys);
@@ -345,13 +345,13 @@ function renderScatter(xs, ys, { xLabel = "Réel", yLabel = "Prédit" } = {}) {
         `<text x="${pad.l - 6}" y="${sy(tick) + 3}" text-anchor="end" fill="#949ba4" font-size="10" font-family="JetBrains Mono, ui-monospace, monospace">${formatTick(tick)}</text>`
     )
     .join("");
-  return `<svg class="viz-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Nuage réel contre prédit">
+  return `<svg class="viz-svg" viewBox="0 0 ${width} ${height}" overflow="visible" role="img" aria-label="Nuage réel contre prédit">
     ${grid}
     <line x1="${sx(min)}" y1="${sy(min)}" x2="${sx(max)}" y2="${sy(max)}" stroke="#949ba4" stroke-dasharray="4 4" stroke-width="1.2" />
     ${points}
     ${tickLabels}
-    <text x="${pad.l + innerW / 2}" y="${height - 8}" text-anchor="middle" fill="#949ba4" font-size="11">${escapeHtml(xLabel)}</text>
-    <text x="12" y="${pad.t + innerH / 2}" fill="#949ba4" font-size="11" transform="rotate(-90 12 ${pad.t + innerH / 2})">${escapeHtml(yLabel)}</text>
+    <text x="${pad.l + innerW / 2}" y="${height - 10}" text-anchor="middle" fill="#949ba4" font-size="11">${escapeHtml(xLabel)}</text>
+    <text x="16" y="${pad.t + innerH / 2}" text-anchor="middle" dominant-baseline="central" fill="#949ba4" font-size="11" transform="rotate(-90 16 ${pad.t + innerH / 2})">${escapeHtml(yLabel)}</text>
   </svg>
   <div class="viz-legend"><span class="viz-swatch blurple"></span> Observations test <span class="viz-swatch muted"></span> Droite y = x</div>`;
 }

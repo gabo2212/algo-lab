@@ -646,6 +646,7 @@ button {
   max-width: 460px;
   height: auto;
   margin-top: 4px;
+  overflow: visible;
 }
 
 .viz-legend {
