@@ -42,6 +42,16 @@ const els = {
   uploadBtn: document.getElementById("upload-btn"),
   csvInput: document.getElementById("csv-input"),
   csvHint: document.getElementById("csv-hint"),
+  kaggleBtn: document.getElementById("kaggle-btn"),
+  kaggleModal: document.getElementById("kaggle-modal"),
+  kaggleStatus: document.getElementById("kaggle-status"),
+  kaggleRef: document.getElementById("kaggle-ref"),
+  kaggleTarget: document.getElementById("kaggle-target"),
+  kaggleSuggestions: document.getElementById("kaggle-suggestions"),
+  kaggleError: document.getElementById("kaggle-error"),
+  kaggleImport: document.getElementById("kaggle-import"),
+  kaggleCancel: document.getElementById("kaggle-cancel"),
+  kaggleClose: document.getElementById("kaggle-close"),
 };
 
 function escapeHtml(value) {
@@ -75,6 +85,19 @@ function channelName(algo) {
   return algo.slug.replaceAll("-", "-");
 }
 
+function formatApiError(detail) {
+  if (detail == null) return "Erreur inconnue";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail.reasons) && detail.reasons.length) {
+    return detail.reasons.join(" ");
+  }
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item.msg || JSON.stringify(item)).join(" ");
+  }
+  if (detail.hint) return detail.hint;
+  return JSON.stringify(detail);
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
@@ -82,8 +105,7 @@ async function api(path, options = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const detail = payload.detail || response.statusText;
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    throw new Error(formatApiError(payload.detail || response.statusText));
   }
   return payload;
 }
@@ -248,6 +270,237 @@ function predictionLines(prediction) {
   return rows;
 }
 
+function shortLabel(value, max = 22) {
+  const text = String(value ?? "");
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function numericList(values) {
+  if (!Array.isArray(values) || values.length < 3) return null;
+  const numbers = values.map((value) => Number(value));
+  return numbers.every((value) => Number.isFinite(value)) ? numbers : null;
+}
+
+function renderBarChart(series, { unit = "", max } = {}) {
+  const peak = Math.max(max ?? 0, ...series.map((item) => Math.abs(Number(item.value) || 0)), 1);
+  const rows = series
+    .slice(0, 8)
+    .map((item) => {
+      const value = Number(item.value) || 0;
+      const pct = Math.max(2, Math.round((Math.abs(value) / peak) * 100));
+      const signed = item.signed && value < 0;
+      const display = `${item.display ?? value}${unit}`;
+      return `<div class="viz-row">
+        <span class="viz-label" title="${escapeHtml(item.label)}">${escapeHtml(shortLabel(item.label))}</span>
+        <div class="viz-track" aria-hidden="true">
+          <div class="viz-fill${item.highlight ? " is-hit" : ""}${signed ? " is-neg" : ""}" style="--w:${pct}%"></div>
+        </div>
+        <span class="viz-value">${escapeHtml(display)}</span>
+      </div>`;
+    })
+    .join("");
+  return `<div class="viz-bars" role="img" aria-label="Graphique en barres">${rows}</div>`;
+}
+
+function renderScatter(xs, ys, { xLabel = "Réel", yLabel = "Prédit" } = {}) {
+  const width = 420;
+  const height = 220;
+  const pad = { l: 42, r: 12, t: 12, b: 36 };
+  const innerW = width - pad.l - pad.r;
+  const innerH = height - pad.t - pad.b;
+  const all = xs.concat(ys);
+  let min = Math.min(...all);
+  let max = Math.max(...all);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const span = max - min;
+  min -= span * 0.06;
+  max += span * 0.06;
+  const sx = (value) => pad.l + ((value - min) / (max - min)) * innerW;
+  const sy = (value) => pad.t + innerH - ((value - min) / (max - min)) * innerH;
+  const ticks = [min, min + (max - min) / 2, max];
+  const formatTick = (value) => {
+    const abs = Math.abs(value);
+    if (abs >= 1000) return String(Math.round(value));
+    if (abs >= 10) return value.toFixed(0);
+    return value.toFixed(1);
+  };
+  const points = xs
+    .map((x, index) => {
+      const y = ys[index];
+      return `<circle cx="${sx(x).toFixed(1)}" cy="${sy(y).toFixed(1)}" r="3.2" fill="#5865f2" fill-opacity="0.78" />`;
+    })
+    .join("");
+  const grid = ticks
+    .map(
+      (tick) =>
+        `<line x1="${pad.l}" y1="${sy(tick)}" x2="${width - pad.r}" y2="${sy(tick)}" stroke="#3f4147" stroke-width="1" />`
+    )
+    .join("");
+  const tickLabels = ticks
+    .map(
+      (tick) =>
+        `<text x="${pad.l - 6}" y="${sy(tick) + 3}" text-anchor="end" fill="#949ba4" font-size="10" font-family="JetBrains Mono, ui-monospace, monospace">${formatTick(tick)}</text>`
+    )
+    .join("");
+  return `<svg class="viz-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Nuage réel contre prédit">
+    ${grid}
+    <line x1="${sx(min)}" y1="${sy(min)}" x2="${sx(max)}" y2="${sy(max)}" stroke="#949ba4" stroke-dasharray="4 4" stroke-width="1.2" />
+    ${points}
+    ${tickLabels}
+    <text x="${pad.l + innerW / 2}" y="${height - 8}" text-anchor="middle" fill="#949ba4" font-size="11">${escapeHtml(xLabel)}</text>
+    <text x="12" y="${pad.t + innerH / 2}" fill="#949ba4" font-size="11" transform="rotate(-90 12 ${pad.t + innerH / 2})">${escapeHtml(yLabel)}</text>
+  </svg>
+  <div class="viz-legend"><span class="viz-swatch blurple"></span> Observations test <span class="viz-swatch muted"></span> Droite y = x</div>`;
+}
+
+function renderHeatmap(matrix, labels) {
+  const rows = matrix.filter(Array.isArray);
+  if (!rows.length) return "";
+  const n = rows.length;
+  const names = (labels || []).slice(0, n);
+  const max = Math.max(1, ...rows.flat().map((value) => Number(value) || 0));
+  const cells = rows
+    .map((row, y) =>
+      row
+        .slice(0, n)
+        .map((value, x) => {
+          const count = Number(value) || 0;
+          const t = count / max;
+          const bg = `rgba(88, 101, 242, ${0.12 + t * 0.78})`;
+          const color = t > 0.55 ? "#fff" : "#dbdee1";
+          return `<div class="viz-cell" style="background:${bg};color:${color}" title="${escapeHtml(names[y] || y)} → ${escapeHtml(names[x] || x)} : ${count}">${count}</div>`;
+        })
+        .join("")
+    )
+    .join("");
+  const head = names.map((name) => `<span title="${escapeHtml(name)}">${escapeHtml(shortLabel(name, 10))}</span>`).join("");
+  const side = names.map((name) => `<span title="${escapeHtml(name)}">${escapeHtml(shortLabel(name, 10))}</span>`).join("");
+  return `<div class="viz-heat" style="--n:${n}" role="img" aria-label="Matrice de confusion">
+    <div class="viz-heat-corner"></div>
+    <div class="viz-heat-x">${head}</div>
+    <div class="viz-heat-y">${side}</div>
+    <div class="viz-heat-grid">${cells}</div>
+  </div>
+  <div class="viz-legend">Lignes = réel · Colonnes = prédit</div>`;
+}
+
+function buildVisualization(result, extra = {}) {
+  const prediction = result.prediction || {};
+  const metrics = result.metrics || result.train?.metrics || {};
+  const classes = result.class_names || metrics.class_names || [];
+
+  if (prediction.probabilities_percent) {
+    const entries = Object.entries(prediction.probabilities_percent);
+    const top = Math.max(...entries.map(([, value]) => Number(value) || 0));
+    const series = entries.map(([label, value]) => ({
+      label,
+      value,
+      highlight: Number(value) === top,
+      display: Number(value).toFixed(1),
+    }));
+    return {
+      text: "Probabilités de chaque classe pour cette observation.",
+      html: renderBarChart(series, { unit: " %", max: 100 }),
+    };
+  }
+
+  if (prediction.feature_effects?.length) {
+    const series = [...prediction.feature_effects]
+      .sort((a, b) => Math.abs(b.effect) - Math.abs(a.effect))
+      .map((item) => ({
+        label: item.name,
+        value: item.effect,
+        signed: true,
+        display: item.effect > 0 ? `+${item.effect}` : String(item.effect),
+      }));
+    if (prediction.intercept != null) {
+      series.push({
+        label: "ordonnée",
+        value: prediction.intercept,
+        signed: true,
+        display: prediction.intercept > 0 ? `+${prediction.intercept}` : String(prediction.intercept),
+      });
+    }
+    return {
+      text: "Contribution de chaque caractéristique à la valeur prédite.",
+      html: renderBarChart(series),
+    };
+  }
+
+  const csvRows = extra.csvRows || [];
+  if (csvRows.length) {
+    const counts = {};
+    csvRows.forEach((row) => {
+      const label = row.summary || row.prediction?.predicted_label || "—";
+      counts[label] = (counts[label] || 0) + 1;
+    });
+    const series = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([label, value]) => ({ label, value }));
+    if (series.length) {
+      return {
+        text: "Répartition des prédictions dans le CSV.",
+        html: renderBarChart(series),
+      };
+    }
+  }
+
+  if (metrics.top_features?.length) {
+    const series = metrics.top_features.map((row) => ({
+      label: row.caracteristique,
+      value: Number(row.importance) || 0,
+      display: Number(row.importance).toFixed(3),
+    }));
+    return {
+      text: "Caractéristiques les plus importantes pour le modèle.",
+      html: renderBarChart(series),
+    };
+  }
+
+  const actuals = numericList(metrics.y_true);
+  const preds = numericList(metrics.y_pred);
+  if (actuals && preds) {
+    return {
+      text: "Valeurs réelles du jeu de test contre les prédictions du modèle.",
+      html: renderScatter(actuals, preds),
+    };
+  }
+
+  if (metrics.confusion_matrix?.length) {
+    return {
+      text: "Matrice de confusion sur le jeu de test.",
+      html: renderHeatmap(metrics.confusion_matrix, classes),
+    };
+  }
+
+  const input = prediction.input;
+  if (input && Object.keys(input).length) {
+    const series = Object.entries(input).map(([label, value]) => ({ label, value: Number(value) || 0 }));
+    return {
+      text: "Valeurs envoyées au modèle pour cette observation.",
+      html: renderBarChart(series),
+    };
+  }
+  return null;
+}
+
+function pushVisualization(slug, result, extra) {
+  const viz = buildVisualization(result, extra);
+  if (!viz) return;
+  pushMessage(slug, {
+    role: "bot",
+    embed: true,
+    embedTone: "viz",
+    embedTitle: "Visualisation",
+    embedText: viz.text,
+    chartHtml: viz.html,
+  });
+}
+
 function csvTable(rows) {
   if (!rows?.length) return "";
   const body = rows
@@ -300,6 +553,7 @@ function renderMessages() {
                   ${msg.embedText ? `<p>${escapeHtml(msg.embedText)}</p>` : ""}
                   ${kv ? `<dl class="kv">${kv}</dl>` : ""}
                   ${msg.tableHtml || ""}
+                  ${msg.chartHtml || ""}
                   ${actions ? `<div class="action-row">${actions}</div>` : ""}
                 </div>`
               : ""
@@ -353,6 +607,7 @@ function seedWelcome(algo, detail) {
       { id: "example", label: "Lancer l’exemple" },
       { id: "exercise", label: "À vous de jouer", style: "secondary" },
       { id: "upload", label: "Importer un CSV", style: "secondary" },
+      { id: "kaggle", label: "Importer depuis Kaggle", style: "secondary" },
     ],
   });
   if (detail?.metrics) {
@@ -381,7 +636,9 @@ async function selectAlgorithm(slug) {
   if (!algo) return;
   state.current = slug;
   els.modelLabel.textContent = algo.name;
-  els.headerTopic.textContent = algo.objective;
+  els.headerTopic.textContent = algo.source?.startsWith("kaggle:")
+    ? `Dataset Kaggle ${algo.source.slice(7)}`
+    : algo.objective;
   renderChannels();
   renderDropdown();
   renderComposer(algo);
@@ -393,6 +650,9 @@ async function selectAlgorithm(slug) {
   }
   const detail = state.details[slug];
   Object.assign(algo, detail);
+  els.headerTopic.textContent = algo.source?.startsWith("kaggle:")
+    ? `Dataset Kaggle ${algo.source.slice(7)}`
+    : algo.objective;
   renderComposer(algo);
   seedWelcome(algo, detail);
   updateSidebar(algo, detail);
@@ -433,6 +693,7 @@ async function requestPrediction(features, hyperparameters) {
       fields: predictionLines(result.prediction),
     });
     const algo = state.algorithms.find((item) => item.slug === slug);
+    pushVisualization(slug, { ...result, class_names: result.class_names || algo?.class_names });
     updateSidebar(algo, result);
   } catch (error) {
     setTyping(false);
@@ -474,6 +735,7 @@ async function runExercise() {
       embedText: result.prompt,
       fields: predictionLines(result.prediction),
     });
+    pushVisualization(slug, { ...result, class_names: result.class_names || algo.class_names });
     if (result.train?.metrics) {
       updateSidebar(algo, { metrics: result.train.metrics });
     }
@@ -550,8 +812,7 @@ async function uploadCsv(file) {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const detail = payload.detail || response.statusText;
-      throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+      throw new Error(formatApiError(payload.detail || response.statusText));
     }
     setTyping(false);
     const fields = [
@@ -572,6 +833,7 @@ async function uploadCsv(file) {
       fields,
       tableHtml: csvTable(payload.rows),
     });
+    pushVisualization(algo.slug, payload, { csvRows: payload.rows });
     updateSidebar(algo, payload);
   } catch (error) {
     setTyping(false);
@@ -586,6 +848,148 @@ async function uploadCsv(file) {
     state.busy = false;
     els.sendBtn.disabled = false;
     els.uploadBtn.disabled = false;
+  }
+}
+
+function formatBytes(n) {
+  if (n == null || n === "") return "";
+  const value = Number(n);
+  if (!value) return "";
+  if (value < 1024) return `${value} o`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} Ko`;
+  return `${(value / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+function formatCount(n) {
+  if (n == null) return "";
+  return new Intl.NumberFormat("fr-FR").format(n);
+}
+
+function closeKaggleModal() {
+  els.kaggleModal.hidden = true;
+  els.kaggleError.hidden = true;
+  els.kaggleError.textContent = "";
+}
+
+function showKaggleError(text) {
+  els.kaggleError.hidden = !text;
+  els.kaggleError.textContent = text || "";
+}
+
+function renderKaggleDatasets(datasets, configured) {
+  els.kaggleSuggestions.innerHTML = "";
+  if (!datasets.length) {
+    els.kaggleSuggestions.innerHTML = `<p class="modal-copy">Aucun dataset compatible n’a été trouvé pour cet algorithme.</p>`;
+    return;
+  }
+  datasets.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "dataset-card";
+    const meta = [item.ref, item.votes != null ? `${formatCount(item.votes)} votes` : "", formatBytes(item.size_bytes)]
+      .filter(Boolean)
+      .join(" · ");
+    card.innerHTML = `
+      <div class="dataset-card-body">
+        <span class="dataset-badge${item.verified ? "" : " maybe"}">${item.verified ? "Compatible" : "CSV Kaggle"}</span>
+        <h3>${escapeHtml(item.title || item.ref)}</h3>
+        <p>${escapeHtml(item.why || item.subtitle || "")}</p>
+        <p class="dataset-meta">${escapeHtml(meta)}</p>
+      </div>
+      <button class="send-btn" type="button" data-kaggle-ref="${escapeHtml(item.ref)}" data-kaggle-target="${escapeHtml(item.target_column || "")}" ${configured ? "" : "disabled"}>Importer</button>
+    `;
+    els.kaggleSuggestions.append(card);
+  });
+}
+
+async function openKaggleModal() {
+  const algo = state.algorithms.find((item) => item.slug === state.current);
+  if (!algo) return;
+  closeMenus();
+  els.kaggleRef.value = "";
+  els.kaggleTarget.value = "";
+  showKaggleError("");
+  els.kaggleModal.hidden = false;
+  els.kaggleStatus.textContent = "Recherche des datasets compatibles…";
+  els.kaggleImport.disabled = true;
+  els.kaggleSuggestions.innerHTML = "";
+  try {
+    const payload = await api(`/algorithms/${algo.slug}/kaggle/suggestions`);
+    const datasets = payload.datasets || payload.suggestions || [];
+    els.kaggleStatus.textContent = payload.configured
+      ? `${datasets.length} dataset${datasets.length > 1 ? "s" : ""} adapté${datasets.length > 1 ? "s" : ""} à ${algo.name}. Cliquez pour importer.`
+      : payload.hint;
+    els.kaggleImport.disabled = !payload.configured;
+    renderKaggleDatasets(datasets, payload.configured);
+  } catch (error) {
+    els.kaggleStatus.textContent = error.message;
+  }
+}
+
+async function importFromKaggle(datasetRef, targetColumn) {
+  const algo = state.algorithms.find((item) => item.slug === state.current);
+  if (!algo || state.busy) return;
+  const dataset = (datasetRef || els.kaggleRef.value).trim();
+  if (!dataset) {
+    showKaggleError("Indiquez un dataset Kaggle (owner/slug).");
+    return;
+  }
+  const target = (targetColumn ?? els.kaggleTarget.value).trim();
+  state.busy = true;
+  els.kaggleImport.disabled = true;
+  els.sendBtn.disabled = true;
+  showKaggleError("");
+  closeKaggleModal();
+  pushMessage(algo.slug, {
+    role: "user",
+    text: `Import Kaggle : ${dataset}`,
+  });
+  setTyping(true);
+  try {
+    const result = await api(`/algorithms/${algo.slug}/kaggle`, {
+      method: "POST",
+      body: JSON.stringify({
+        dataset,
+        target_column: target || null,
+        hyperparameters: collectHyperparameters(algo),
+      }),
+    });
+    const detail = await api(`/algorithms/${algo.slug}`);
+    state.details[algo.slug] = detail;
+    Object.assign(algo, detail);
+    renderComposer(algo);
+    updateSidebar(algo, detail);
+    els.headerTopic.textContent = algo.source?.startsWith("kaggle:")
+      ? `Dataset Kaggle ${algo.source.slice(7)}`
+      : algo.objective;
+    setTyping(false);
+    const inspection = result.inspection || {};
+    pushMessage(algo.slug, {
+      role: "bot",
+      embed: true,
+      embedTone: "success",
+      embedTitle: "Dataset Kaggle accepté",
+      embedText: `Le modèle a été réentraîné sur ${result.dataset} (${result.file}).`,
+      fields: [
+        ["Cible", inspection.target],
+        ["Type de cible", inspection.target_kind],
+        ["Lignes utilisées", inspection.rows_used],
+        ["Caractéristiques", (inspection.features_used || []).join(", ")],
+      ],
+    });
+    pushVisualization(algo.slug, { ...result, metrics: result.metrics || result.train?.metrics });
+  } catch (error) {
+    setTyping(false);
+    pushMessage(algo.slug, {
+      role: "bot",
+      embed: true,
+      embedTone: "error",
+      embedTitle: "Dataset Kaggle refusé",
+      embedText: error.message,
+    });
+  } finally {
+    state.busy = false;
+    els.sendBtn.disabled = false;
+    els.kaggleImport.disabled = false;
   }
 }
 
@@ -609,6 +1013,7 @@ els.plusMenu.addEventListener("click", (event) => {
   if (action === "example") fillExample();
   if (action === "exercise") runExercise();
   if (action === "upload") openCsvPicker();
+  if (action === "kaggle") openKaggleModal();
   if (action === "template") downloadTemplate();
   if (action === "metrics") showMetrics();
 });
@@ -621,6 +1026,7 @@ els.messages.addEventListener("click", (event) => {
   }
   if (action === "exercise") runExercise();
   if (action === "upload") openCsvPicker();
+  if (action === "kaggle") openKaggleModal();
 });
 
 els.composer.addEventListener("submit", (event) => {
@@ -629,6 +1035,18 @@ els.composer.addEventListener("submit", (event) => {
 });
 
 els.uploadBtn.addEventListener("click", openCsvPicker);
+els.kaggleBtn.addEventListener("click", openKaggleModal);
+els.kaggleCancel.addEventListener("click", closeKaggleModal);
+els.kaggleClose.addEventListener("click", closeKaggleModal);
+els.kaggleImport.addEventListener("click", () => importFromKaggle());
+els.kaggleSuggestions.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-kaggle-ref]");
+  if (!button || button.disabled) return;
+  importFromKaggle(button.dataset.kaggleRef, button.dataset.kaggleTarget || "");
+});
+els.kaggleModal.addEventListener("click", (event) => {
+  if (event.target === els.kaggleModal) closeKaggleModal();
+});
 els.csvInput.addEventListener("change", () => {
   const file = els.csvInput.files?.[0];
   if (file) uploadCsv(file);
@@ -643,6 +1061,7 @@ document.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeMenus();
+    closeKaggleModal();
     els.sidebar.classList.remove("open");
     els.backdrop.hidden = true;
   }

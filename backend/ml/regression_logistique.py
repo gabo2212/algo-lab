@@ -62,6 +62,9 @@ class RegressionLogistique(SupervisedAlgorithm):
         )
 
     def train(self, **hyperparameters: Any) -> dict[str, Any]:
+        custom = self.try_custom_train(**hyperparameters)
+        if custom is not None:
+            return custom
         data = self._dataset()
         X = data[self.feature_names]
         y = data[self.target_name]
@@ -87,26 +90,3 @@ class RegressionLogistique(SupervisedAlgorithm):
         }
         self.trained = True
         return {"metrics": self.metrics, "hyperparameters": self.hyperparameters}
-
-    def predict(self, features: dict[str, Any]) -> dict[str, Any]:
-        if not self.trained:
-            self.train()
-        row = pd.DataFrame(
-            [
-                {
-                    "heures_etude": float(features["heures_etude"]),
-                    "presence": float(features["presence"]),
-                }
-            ]
-        )
-        predicted_class = int(self.model.predict(row)[0])
-        probability = float(self.model.predict_proba(row)[0][1])
-        return {
-            "input": {
-                "heures_etude": row.at[0, "heures_etude"],
-                "presence": row.at[0, "presence"],
-            },
-            "predicted_class": predicted_class,
-            "success_probability_percent": round(probability * 100, 2),
-            "result": "Réussite" if predicted_class == 1 else "Échec",
-        }

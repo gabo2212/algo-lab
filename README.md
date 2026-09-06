@@ -40,6 +40,24 @@ Use **CSV** in the composer, or download a matching template from the `+` menu.
 
 Column names can use spaces or underscores (`sepal length (cm)` and `sepal_length` both work).
 
+## Kaggle import
+
+The lab can download a Kaggle dataset and retrain the **currently selected** algorithm, but only if the table actually fits that algorithm.
+
+1. Create an API token at [kaggle.com/settings/api](https://www.kaggle.com/settings/api).
+2. Copy `.env.example` to `.env` and set `KAGGLE_API_TOKEN`. (Legacy `kaggle.json` username/key still works.)
+3. In the UI, open an algorithm, then **Kaggle** (or `+` → Importer depuis Kaggle).
+
+A dataset is accepted only when it is tabular CSV/TSV with numeric features and a compatible target:
+
+| Algorithm | Required target |
+|---|---|
+| Linear regression | Continuous numeric |
+| Logistic regression / SVM | Exactly two classes |
+| Decision tree / KNN / random forest | Binary or multiclass labels |
+
+Images, audio, raw text, id-only tables, and the wrong task type are rejected with the inspection reasons. Suggested refs that usually pass: `camnugent/california-housing-prices`, `uciml/pima-indians-diabetes-database`, `uciml/iris`, `uciml/red-wine-quality-cortez-et-al-2009`, `uciml/breast-cancer-wisconsin-data`.
+
 ## Layout
 
 ```

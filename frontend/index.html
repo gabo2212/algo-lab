@@ -100,6 +100,7 @@
               <button type="button" role="menuitem" data-action="example">Remplir l’exemple</button>
               <button type="button" role="menuitem" data-action="exercise">À vous de jouer</button>
               <button type="button" role="menuitem" data-action="upload">Importer un CSV</button>
+              <button type="button" role="menuitem" data-action="kaggle">Importer depuis Kaggle</button>
               <button type="button" role="menuitem" data-action="template">Télécharger un CSV d’exemple</button>
               <button type="button" role="menuitem" data-action="metrics">Afficher les métriques</button>
             </div>
@@ -109,6 +110,7 @@
               </svg>
               CSV
             </button>
+            <button class="text-btn" id="kaggle-btn" type="button">Kaggle</button>
             <p class="composer-hint" id="csv-hint">Importez un CSV ou remplissez les champs.</p>
             <button class="send-btn" id="send-btn" type="submit">
               <span>Prédire</span>
@@ -149,6 +151,41 @@
     </div>
 
     <div class="backdrop" id="backdrop" hidden></div>
+
+    <div class="modal-overlay" id="kaggle-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="kaggle-title">
+        <header class="modal-head">
+          <h2 id="kaggle-title">Importer depuis Kaggle</h2>
+          <button class="icon-btn" id="kaggle-close" type="button" aria-label="Fermer">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="currentColor" d="M18.3 5.7a1 1 0 0 0-1.4-1.4L12 9.17 7.1 4.3A1 1 0 0 0 5.7 5.7L10.59 10.6 5.7 15.5a1 1 0 1 0 1.4 1.4L12 12l4.9 4.9a1 1 0 0 0 1.4-1.4L13.41 10.6z"/>
+            </svg>
+          </button>
+        </header>
+        <p class="modal-status" id="kaggle-status"></p>
+        <p class="modal-copy" id="kaggle-copy">
+          Jeux tabulaires compatibles avec l’algorithme ouvert. Cliquez sur Importer pour télécharger, valider et entraîner.
+        </p>
+        <div class="dataset-list" id="kaggle-suggestions"></div>
+        <p class="modal-error" id="kaggle-error" hidden></p>
+        <details class="kaggle-advanced">
+          <summary>Autre dataset (URL ou owner/slug)</summary>
+          <div class="field">
+            <label for="kaggle-ref">Dataset</label>
+            <input id="kaggle-ref" type="text" placeholder="uciml/iris ou URL kaggle.com/datasets/…" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="kaggle-target">Colonne cible (optionnel)</label>
+            <input id="kaggle-target" type="text" placeholder="Détectée automatiquement" autocomplete="off" />
+          </div>
+          <button class="send-btn" id="kaggle-import" type="button">Importer cette référence</button>
+        </details>
+        <div class="modal-actions">
+          <button class="text-btn" id="kaggle-cancel" type="button">Fermer</button>
+        </div>
+      </div>
+    </div>
+
     <script src="/static/app.js"></script>
   </body>
 </html>

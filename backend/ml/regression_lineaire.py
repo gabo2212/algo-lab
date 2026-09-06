@@ -72,6 +72,9 @@ class RegressionLineaire(SupervisedAlgorithm):
         )
 
     def train(self, **hyperparameters: Any) -> dict[str, Any]:
+        custom = self.try_custom_train(**hyperparameters)
+        if custom is not None:
+            return custom
         data = self._dataset()
         X = data[self.feature_names]
         y = data[self.target_name]
@@ -92,21 +95,3 @@ class RegressionLineaire(SupervisedAlgorithm):
         }
         self.trained = True
         return {"metrics": self.metrics, "hyperparameters": self.hyperparameters}
-
-    def predict(self, features: dict[str, Any]) -> dict[str, Any]:
-        if not self.trained:
-            self.train()
-        row = pd.DataFrame(
-            [
-                {
-                    "surface": float(features["surface"]),
-                    "chambres": float(features["chambres"]),
-                }
-            ]
-        )
-        price = float(self.model.predict(row)[0])
-        return {
-            "input": {"surface": row.at[0, "surface"], "chambres": row.at[0, "chambres"]},
-            "predicted_price": round(price, 2),
-            "unit": "$",
-        }

@@ -62,6 +62,9 @@ class ArbreDecision(SupervisedAlgorithm):
         self.hyperparameters = {"max_depth": 3}
 
     def train(self, **hyperparameters: Any) -> dict[str, Any]:
+        custom = self.try_custom_train(**hyperparameters)
+        if custom is not None:
+            return custom
         max_depth = int(hyperparameters.get("max_depth", 3))
         self.hyperparameters = {"max_depth": max_depth}
 
@@ -90,16 +93,3 @@ class ArbreDecision(SupervisedAlgorithm):
         self.trained = True
         return {"metrics": self.metrics, "hyperparameters": self.hyperparameters}
 
-    def predict(self, features: dict[str, Any]) -> dict[str, Any]:
-        if not self.trained:
-            self.train()
-        row = pd.DataFrame(
-            [[float(features[name]) for name in self.feature_names]],
-            columns=self.feature_names,
-        )
-        predicted_number = int(self.model.predict(row)[0])
-        return {
-            "input": {name: row.at[0, name] for name in self.feature_names},
-            "predicted_class": predicted_number,
-            "predicted_species": self.class_names[predicted_number],
-        }

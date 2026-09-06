@@ -66,6 +66,9 @@ class Svm(SupervisedAlgorithm):
         return payload
 
     def train(self, **hyperparameters: Any) -> dict[str, Any]:
+        custom = self.try_custom_train(**hyperparameters)
+        if custom is not None:
+            return custom
         kernel = str(hyperparameters.get("kernel", "rbf"))
         self.hyperparameters = {"kernel": kernel}
 
@@ -120,26 +123,6 @@ class Svm(SupervisedAlgorithm):
             "metrics": self.metrics,
             "hyperparameters": self.hyperparameters,
             "disclaimer": self.disclaimer,
-        }
-
-    def predict(self, features: dict[str, Any]) -> dict[str, Any]:
-        if not self.trained:
-            self.train()
-        row = pd.DataFrame(
-            [[float(features[name]) for name in self.feature_names]],
-            columns=self.feature_names,
-        )
-        predicted_number = int(self.model.predict(row)[0])
-        probabilities = self.model.predict_proba(row)[0]
-        return {
-            "disclaimer": self.disclaimer,
-            "input": {name: row.at[0, name] for name in self.feature_names},
-            "predicted_class": predicted_number,
-            "predicted_label": self.class_names[predicted_number],
-            "probabilities_percent": {
-                name: round(float(prob) * 100, 2)
-                for name, prob in zip(self.class_names, probabilities)
-            },
         }
 
     def run_exercise(self) -> dict[str, Any]:

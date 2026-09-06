@@ -17,6 +17,7 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 SAMPLES_DIR = Path(__file__).resolve().parent.parent / "samples"
 
 from backend.csv_io import predict_csv, sample_csv_response
+from backend.kaggle_io import import_dataset, kaggle_status, list_compatible_datasets
 from backend.json_safe import json_safe
 from backend.ml import ALGORITHMS
 from backend.ml.base import SupervisedAlgorithm
@@ -38,6 +39,12 @@ class TrainRequest(BaseModel):
 
 class PredictRequest(BaseModel):
     features: dict[str, Any] | None = None
+    hyperparameters: dict[str, Any] = Field(default_factory=dict)
+
+
+class KaggleImportRequest(BaseModel):
+    dataset: str
+    target_column: str | None = None
     hyperparameters: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -161,6 +168,30 @@ def run_exercise(slug: str) -> dict[str, Any]:
             "how_to_read": algorithm.how_to_read,
             **result,
         }
+    )
+
+
+@app.get("/kaggle/status")
+def kaggle_status_endpoint() -> dict[str, Any]:
+    return kaggle_status()
+
+
+@app.get("/algorithms/{slug}/kaggle/suggestions")
+def kaggle_suggestions(slug: str) -> dict[str, Any]:
+    algorithm = get_algorithm(slug)
+    return json_safe(list_compatible_datasets(algorithm))
+
+
+@app.post("/algorithms/{slug}/kaggle")
+def import_kaggle_dataset(slug: str, body: KaggleImportRequest) -> dict[str, Any]:
+    algorithm = get_algorithm(slug)
+    return json_safe(
+        import_dataset(
+            algorithm,
+            body.dataset,
+            body.target_column,
+            body.hyperparameters,
+        )
     )
 
 

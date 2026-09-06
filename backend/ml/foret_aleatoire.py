@@ -55,6 +55,9 @@ class ForetAleatoire(SupervisedAlgorithm):
         self._example_true_class: int | None = None
 
     def train(self, **hyperparameters: Any) -> dict[str, Any]:
+        custom = self.try_custom_train(**hyperparameters)
+        if custom is not None:
+            return custom
         n_estimators = int(hyperparameters.get("n_estimators", 100))
         max_depth = int(hyperparameters.get("max_depth", 5))
         self.hyperparameters = {"n_estimators": n_estimators, "max_depth": max_depth}
@@ -101,20 +104,6 @@ class ForetAleatoire(SupervisedAlgorithm):
         }
         self.trained = True
         return {"metrics": self.metrics, "hyperparameters": self.hyperparameters}
-
-    def predict(self, features: dict[str, Any]) -> dict[str, Any]:
-        if not self.trained:
-            self.train()
-        row = pd.DataFrame(
-            [[float(features[name]) for name in self.feature_names]],
-            columns=self.feature_names,
-        )
-        predicted_number = int(self.model.predict(row)[0])
-        return {
-            "input": {name: row.at[0, name] for name in self.feature_names},
-            "predicted_class": predicted_number,
-            "predicted_category": self.class_names[predicted_number],
-        }
 
     def run_exercise(self) -> dict[str, Any]:
         result = super().run_exercise()
