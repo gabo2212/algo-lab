@@ -21,8 +21,8 @@
   --ring: #00a8fc;
   --radius: 8px;
   --easing: cubic-bezier(0.16, 1, 0.3, 1);
-  --font: "Inter", "Segoe UI", sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --font: "Inter", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
   color-scheme: dark;
 }
 

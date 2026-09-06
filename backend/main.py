@@ -89,7 +89,22 @@ app.add_middleware(
 
 @app.get("/")
 def root() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return FileResponse(
+        FRONTEND_DIR / "index.html",
+        headers={
+            "Content-Security-Policy": (
+                "default-src 'self'; script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+                "font-src 'self'; connect-src 'self'; object-src 'none'; "
+                "base-uri 'self'; form-action 'self'"
+            )
+        },
+    )
+
+
+@app.get("/favicon.ico")
+def favicon() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "static" / "favicon.svg", media_type="image/svg+xml")
 
 
 @app.get("/meta")
